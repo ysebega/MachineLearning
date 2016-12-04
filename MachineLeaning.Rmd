@@ -1,0 +1,135 @@
+---
+title: "Machine Learning Project : Prediction Assignment Writeup"
+author: "Y.Sebega"
+date: "December 1, 2016"
+output: html_document
+---
+
+## Background
+Noadays, it is possible and very easy to collect large amount of personal data using devices such as Jawbone Up, Nike FuelBand, and Fitbit. Data collection in this context is relatively inexpensive. These devices measures regularly volunteers movements in order to improver their health, or find patterns in their behavior. The goal of this project is to predict the manner in which this exercise is conceived. Two datasets (training and testing sets) are downloaded from the internet to help in our prediction. The training dataset will be partitioned, the random forest model will be used as model and then cross validation will be perfomed for accuracy. And finally, the expected out of sample error will be pointed out.
+
+
+## Download and Load Data
+The two datasets are downloaded directly to the directory where the .Rmd file is located. Two datasets are created with the read.csv() function.
+```{r, echo=FALSE}
+urltrain<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urltest<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# Download the training dataset if not already downloaded
+if (!file.exists("pml-training.csv")){
+  download.file(url=urltrain, destfile = "pml-training.csv")
+}
+
+# Download the test dataset if not already downloaded
+if (!file.exists("pml-testing.csv")){
+  download.file(url=urltest, destfile = "pml-testing.csv")
+}
+
+# Read the two data files.
+dftraining<-read.csv("pml-training.csv")
+dftesting<-read.csv("pml-testing.csv")
+
+```
+
+Some packages are necessary for running this project which are silently loaded. They are caret, rpart, rattle, rpart.plot, rattle, and randomForest.
+```{r, echo=FALSE, warning=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+
+```
+
+
+## Training & Testing dataset
+The idea behind data partitioning is to create 60% of training versus 40% of testing set for our model. And then cross validation is used to validate the sets.
+```{r, echo=FALSE}
+dtcols <- names(dftesting[,colSums(is.na(dftesting)) == 0])[8:59]
+
+dftraining <- dftraining[,c(dtcols,"classe")]
+dftesting <- dftesting[,c(dtcols,"problem_id")]
+
+```
+
+
+## Partitioning (Data Slicing)
+With nearly 20000 observations in the training dataset, We estimate that this is a big sample. Thus, data slicing is based on 60% for the training. 
+
+```{r, echo=FALSE}
+set.seed(12345)
+# Create data partitions.
+inTrain <- createDataPartition(y=dftraining$classe, p=0.6, list=FALSE)
+# Create subsets on the training dataset. 
+training <- dftraining[inTrain,]
+testing <- dftraining[-inTrain,]
+dim(training)
+
+```
+
+
+## Random Forest Model
+The model used as mentioned in the introduction is the random forest model.
+```{r, echo=TRUE}
+
+modelFit <- randomForest(classe ~ ., data = training, importance = TRUE, ntrees = 10)
+
+
+```
+
+The model has to be cross validated. Thus, two set of accuracy validation are performed. First, we fit the model with the training. And then the test set follows.
+
+### Validation Training
+Cross validation is done on the training set for accuracy.
+
+```{r, echo=TRUE}
+set.seed(54321)
+
+vtraining <- predict(modelFit, training)
+# Get the performance of the model thru the confusion matrix.
+print(confusionMatrix(vtraining, training$classe))
+
+```
+The results show consistency in the variables fitted to our model. What does the cross validation against the testing entails. Let's check it.
+
+### Validation Testing
+The testing set accuracy is outline in the following result.
+
+```{r, echo=TRUE}
+# cross validation with the testing subset.
+validation <- predict(modelFit, testing)
+# Get the performance of the model thru the confusion matrix.
+print(confusionMatrix(validation, testing$classe))
+
+```
+
+The cross validation accuracy is 99.4%, the p-value is very small (<.5). With .5% out-of-sample error, we conclude that the model selected is adequate for prediction.
+
+## Prediction on test cases
+Using the testing dataset downloaded from the site, we fit it to our predict function.
+The output shows 20 test cases with all factors variables.
+```{r, echo=TRUE}
+# apply the algorith to testing dataset.
+prediction <- predict(modelFit, dftesting)
+print(prediction)
+ 
+# use the result of our prediction to create the files.
+i <- as.vector(prediction)
+
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+pml_write_files(i)
+
+```
+
+
+
+
